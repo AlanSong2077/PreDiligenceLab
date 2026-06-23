@@ -1,0 +1,193 @@
+name: release
+
+# 推 tag (v* / release-*) 触发；同时支持手动 dispatch（填入版本号）
+on:
+  push:
+    tags:
+      - "v*"
+      - "release-*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号 (e.g. 1.4.0)，留空则用 tag 或时间戳"
+        required: false
+        default: ""
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # 用于创建 GitHub Release
+
+jobs:
+  # ── 1. 源码归档 ─────────────────────────────────────────
+  source-archive:
+    name: source archive
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: v
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ -n "${{ github.ref_name }}" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(date -u +%Y%m%d)"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Create source zip
+        run: |
+          mkdir -p release
+          git archive --format=zip --prefix=PreDiligenceLab-$VERSION/ -o release/PreDiligenceLab-$VERSION-source.zip HEAD
+          ls -lh release/
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-archive
+          path: release/PreDiligenceLab-${{ env.VERSION }}-source.zip
+          if-no-files-found: error
+
+  # ── 2. Windows 打包（产物 + Inno Setup 安装包）──────────────
+  windows:
+    name: build (windows)
+    needs: [source-archive]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install Inno Setup 6
+        run: choco install innosetup -y --no-progress
+
+      - name: PyInstaller build
+        run: |
+          pyinstaller PreDiligenceLab.spec --noconfirm --clean
+          if (-not (Test-Path "dist/PreDiligenceLab/PreDiligenceLab.exe")) {
+            Write-Error "EXE not found"
+            exit 1
+          }
+          Get-ChildItem dist/
+
+      - name: Build Inno Setup installer
+        run: |
+          iscc installer.iss
+          if (-not (Test-Path "dist/PreDiligenceLab_Setup.exe")) {
+            Write-Error "Setup exe not found"
+            exit 1
+          }
+
+      - name: Zip dist folder (portable)
+        run: |
+          $version = "${{ needs.source-archive.outputs.version }}"
+          Compress-Archive -Path dist/PreDiligenceLab/* -DestinationPath "release/PreDiligenceLab-$version-windows-x64.zip"
+          Compress-Archive -Path dist/PreDiligenceLab/PreDiligenceLab.exe -DestinationPath "release/PreDiligenceLab-$version-windows-x64-single.exe.zip"
+          Get-ChildItem release/
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            release/*.zip
+            dist/PreDiligenceLab_Setup.exe
+          if-no-files-found: error
+
+  # ── 3. macOS 打包（.app + .zip）──────────────────────────
+  macos:
+    name: build (macos)
+    needs: [source-archive]
+    strategy:
+      # 同时跑 Intel 与 Apple Silicon
+      matrix:
+        arch: [x86_64, arm64]
+    runs-on: macos-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python deps
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install -r requirements.txt --break-system-packages
+          pip3 install pyinstaller --break-system-packages
+
+      - name: PyInstaller build (.app)
+        run: |
+          pyinstaller PreDiligenceLab.spec --noconfirm --clean
+          if [ ! -d "dist/PreDiligenceLab.app" ]; then
+            echo "ERROR: .app not found"
+            exit 1
+          fi
+          ls -la dist/
+
+      - name: Zip .app (excluding codesign if no cert)
+        run: |
+          VERSION="${{ needs.source-archive.outputs.version }}"
+          cd dist
+          # 跳过 .DS_Store 等
+          zip -r "../release/PreDiligenceLab-${VERSION}-macOS-${{ matrix.arch }}.zip" PreDiligenceLab.app -x "*.DS_Store"
+          cd ..
+          ls -lh release/
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-${{ matrix.arch }}
+          path: release/PreDiligenceLab-${{ needs.source-archive.outputs.version }}-macOS-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  # ── 4. 创建 GitHub Release 并挂所有 artifact ────────────
+  release:
+    name: github release
+    needs: [source-archive, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          find artifacts -type f -exec ls -lh {} \;
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Pre-Diligence Lab ${{ needs.source-archive.outputs.version }}"
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/PreDiligenceLab_Setup.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,20 @@
+# CODEOWNERS — 默认审查人
+# 每个路径变更都会自动 @ 下列用户 / 团队请求 review
+# 留空表示不强制要求（任何 maintainer 都可 review）
+
+# 根目录
+/*                          @AlanHermitSoong
+
+# 构建 / 打包相关
+/PreDiligenceLab.spec      @AlanHermitSoong
+/build_mac.sh               @AlanHermitSoong
+/build_win.bat              @AlanHermitSoong
+/installer.iss              @AlanHermitSoong
+/.github/                   @AlanHermitSoong
+
+# 核心业务（敏感模块，强烈建议 review）
+/fetcher.py                 @AlanHermitSoong
+/sec_edgar.py               @AlanHermitSoong
+/hkex.py                    @AlanHermitSoong
+/llm_client.py              @AlanHermitSoong
+/main.py                    @AlanHermitSoong

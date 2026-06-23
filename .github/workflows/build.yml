@@ -1,0 +1,128 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支并发运行只保留最新一个
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. 基础 lint + 语法（所有平台通用）────────────────────
+  lint:
+    name: lint (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps (skip GUI)
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas yfinance akshare beautifulsoup4 lxml matplotlib keyring
+          # PyQt6 在 headless 环境装不上，这里只做语法 / import 校验
+          pip install PyQt6 --only-binary=:all: || echo "PyQt6 跳过（headless）"
+
+      - name: py_compile all .py
+        run: |
+          set -e
+          for f in $(find . -maxdepth 2 -name "*.py" -not -path "./.venv/*"); do
+            python -m py_compile "$f"
+          done
+
+      - name: Validate workflow YAMLs
+        run: |
+          python -c "
+          import yaml, glob, sys
+          for p in glob.glob('.github/workflows/*.yml'):
+              with open(p) as f:
+                  yaml.safe_load(f)
+              print('  OK:', p)
+          "
+
+      - name: Validate PyInstaller spec (syntax only)
+        run: |
+          python -c "
+          import ast
+          with open('PreDiligenceLab.spec') as f:
+              ast.parse(f.read())
+          print('  spec syntax OK')
+          "
+
+  # ── 2. Windows 烟囱测试（只 verify spec 可被 PyInstaller 解析）──
+  windows:
+    name: build (windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: PyInstaller Analysis (no bundle, fast)
+        run: |
+          pyinstaller --noconfirm --log-level WARN `
+            --name PreDiligenceLab `
+            --collect-submodules PyQt6 `
+            --collect-submodules matplotlib `
+            --collect-submodules pandas `
+            --collect-submodules yfinance `
+            --collect-submodules akshare `
+            --hidden-import=requests `
+            --hidden-import=keyring `
+            --distpath build_test `
+            --workpath build_tmp `
+            --specpath . `
+            PreDiligenceLab.spec.tmp 2>&1 | Tee-Object -FilePath build_log.txt
+        # 说明：单独跑一次是为了让 workflow 验证 spec 在 Windows 上能解析；正式产物的 build 在 release.yml。
+
+  # ── 3. macOS 烟囱测试 ─────────────────────────────────
+  macos:
+    name: build (macos)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install PyInstaller
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install pyinstaller --break-system-packages
+
+      - name: Verify spec file parses on macOS Python
+        run: |
+          python3 -c "
+          import ast
+          with open('PreDiligenceLab.spec') as f:
+              ast.parse(f.read())
+          print('  spec syntax OK on macOS')
+          "
+
+      - name: List PyInstaller hidden imports referenced by spec
+        run: |
+          python3 -c "
+          from PyInstaller.utils.hooks import collect_submodules
+          mods = collect_submodules('PyQt6')
+          print(f'  PyQt6 submodules: {len(mods)}')
+          "

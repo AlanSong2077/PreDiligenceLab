@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+pip-wheel-metadata/
+
+# PyInstaller 构建产物
+dist/
+build/
+*.spec.bak
+
+# 打包产物（应用包 / 安装包）
+*.app/
+*.dmg
+*.exe
+*.msi
+*.zip
+!docs/**/*.zip
+
+# 虚拟环境
+venv/
+.venv/
+env/
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 敏感配置（API Key 等不要上传）
+config.json
+*.key
+secrets.*
+*.pem
+*.p12
+*.pfx
+
+# 运行时生成
+*.log
+*.log.*
+*.tmp
+
+# 测试 / 调试
+_test_*.py
+_debug_*.py
+_screenshot_*.py
+_build_*.py
+test_*.py
+123.csv
+*.png
+!docs/**/*.png
