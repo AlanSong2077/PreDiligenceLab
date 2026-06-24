@@ -36,7 +36,7 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          elif [ -n "${{ github.ref_name }}" ]; then
+          elif [[ "${{ github.ref_name }}" == v* ]] || [[ "${{ github.ref_name }}" == release-* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
             VERSION="$(date -u +%Y%m%d)"
@@ -78,6 +78,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+          pip install PyQt6-sip 2>$null; echo "PyQt6-sip optional, continuing"
 
       - name: Install Inno Setup 6
         run: choco install innosetup -y --no-progress
@@ -124,9 +125,6 @@ jobs:
     name: build (macos)
     needs: [source-archive]
     strategy:
-      # 同时跑 Intel 与 Apple Silicon
-      # GitHub runner label:
-      #   macos-13 = Intel,  macos-14 / macos-15 = Apple Silicon
       fail-fast: false
       matrix:
         config:
@@ -146,6 +144,7 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install -r requirements.txt --break-system-packages
           pip3 install pyinstaller --break-system-packages
+          pip3 install PyQt6-sip --break-system-packages 2>/dev/null || true
 
       - name: PyInstaller build (.app)
         run: |
@@ -156,12 +155,11 @@ jobs:
           fi
           ls -la dist/
 
-      - name: Zip .app (excluding codesign if no cert)
+      - name: Zip .app
         run: |
           VERSION="${{ needs.source-archive.outputs.version }}"
           mkdir -p release
           cd dist
-          # 跳过 .DS_Store 等
           zip -r "../release/PreDiligenceLab-${VERSION}-macOS-${{ matrix.config.arch }}.zip" PreDiligenceLab.app -x "*.DS_Store"
           cd ..
           ls -lh release/
@@ -188,10 +186,22 @@ jobs:
         run: |
           find artifacts -type f -exec ls -lh {} \;
 
+      - name: Determine tag name
+        id: tag
+        run: |
+          REF="${{ github.ref_name }}"
+          # 如果是 workflow_dispatch 且 ref 是分支名，则构造 v 版本 tag
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="v${{ needs.source-archive.outputs.version }}"
+          else
+            TAG="$REF"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.tag }}
           name: "Pre-Diligence Lab ${{ needs.source-archive.outputs.version }}"
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}

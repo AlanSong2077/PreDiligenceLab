@@ -25,11 +25,14 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install deps (skip GUI)
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install requests pandas yfinance akshare beautifulsoup4 lxml matplotlib keyring pyyaml
-          # PyQt6 在 headless 环境装不上，这里只做语法 / import 校验
+          pip install -r requirements.txt
+          pip install pyinstaller
+          # PyQt6-sip 有时需要显式安装
+          pip install PyQt6-sip 2>/dev/null || true
+          # PyQt6 在 headless 环境可能装不上，跳过（py_compile 不需要运行时加载）
           pip install PyQt6 --only-binary=:all: || echo "PyQt6 跳过（headless）"
 
       - name: py_compile all .py
@@ -58,7 +61,7 @@ jobs:
           print('  spec syntax OK')
           "
 
-  # ── 2. Windows 烟囱测试（只 verify spec 可被 PyInstaller 解析）──
+  # ── 2. Windows 烟囱测试 ──────────────────────────────────
   windows:
     name: build (windows)
     runs-on: windows-latest
@@ -73,21 +76,28 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
+      - name: Install Python deps + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
 
-      - name: PyInstaller availability + spec syntax check
-        # PyInstaller 在传入 .spec 文件时直接进入 build 模式，所有 makespec 类
-        # 选项（--name / --specpath / --collect-submodules / --hidden-import）
-        # 都会被拒绝（"makespec options not valid when a .spec file is given"）。
-        # 因此这里改用 ast 校验 + PyInstaller 模块 import 检测，与 macOS
-        # 任务的 smoke 风格保持一致；正式产物的构建在 release.yml 中完成。
+      - name: PyInstaller spec syntax + import check
         run: |
           python -c "import ast; ast.parse(open('PreDiligenceLab.spec').read()); print('  spec syntax OK on Windows')"
           python -c "import PyInstaller; print(f'  PyInstaller {PyInstaller.__version__} importable on Windows')"
           python -c "from PyInstaller.utils.hooks import collect_submodules; mods = collect_submodules('PyQt6'); print(f'  PyQt6 submodules: {len(mods)}')"
 
-  # ── 3. macOS 烟囱测试 ─────────────────────────────────
+      - name: PyInstaller dry-run build
+        run: |
+          pyinstaller PreDiligenceLab.spec --noconfirm --clean
+          if (-not (Test-Path "dist/PreDiligenceLab/PreDiligenceLab.exe")) {
+            Write-Error "EXE not found — dry-run build failed"
+            exit 1
+          }
+          Write-Host "  Windows build OK"
+
+  # ── 3. macOS 烟囱测试 ──────────────────────────────────
   macos:
     name: build (macos)
     runs-on: macos-latest
@@ -99,24 +109,22 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install PyInstaller
+      - name: Install Python deps + PyInstaller
         run: |
           python3 -m pip install --upgrade pip
+          pip3 install -r requirements.txt --break-system-packages
           pip3 install pyinstaller --break-system-packages
 
-      - name: Verify spec file parses on macOS Python
+      - name: Verify spec + PyInstaller on macOS
         run: |
-          python3 -c "
-          import ast
-          with open('PreDiligenceLab.spec') as f:
-              ast.parse(f.read())
-          print('  spec syntax OK on macOS')
-          "
+          python3 -c "import ast; ast.parse(open('PreDiligenceLab.spec').read()); print('  spec syntax OK on macOS')"
+          python3 -c "from PyInstaller.utils.hooks import collect_submodules; mods = collect_submodules('PyQt6'); print(f'  PyQt6 submodules: {len(mods)}')"
 
-      - name: List PyInstaller hidden imports referenced by spec
+      - name: PyInstaller dry-run build (.app)
         run: |
-          python3 -c "
-          from PyInstaller.utils.hooks import collect_submodules
-          mods = collect_submodules('PyQt6')
-          print(f'  PyQt6 submodules: {len(mods)}')
-          "
+          pyinstaller PreDiligenceLab.spec --noconfirm --clean
+          if [ ! -d "dist/PreDiligenceLab.app" ]; then
+            echo "ERROR: .app not found — dry-run build failed"
+            exit 1
+          fi
+          echo "  macOS build OK"
