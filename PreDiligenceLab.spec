@@ -7,7 +7,8 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        # ── 核心业务模块 ──────────────────────────────────
+        # ── Qt configuration (must be at Resources root for macOS .app bundle) ──
+        ('qt.conf', '.'),
         ('main.py',              '.'),
         ('theme.py',             '.'),
         ('logger.py',            '.'),
@@ -79,7 +80,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['hook-qt6-path.py'],
     excludes=[
         'tkinter',
         'test',
