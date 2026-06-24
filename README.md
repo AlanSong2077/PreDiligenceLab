@@ -6,7 +6,7 @@
 
 <p align="center">
   一级市场预研与风控Lab<br>
-  Primary-Market Investment Research &amp; Risk-Control Workbench
+  Primary-Market Investment Research &amp; Risk-Control Lab
 </p>
 
 <p align="center">
