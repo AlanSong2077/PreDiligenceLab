@@ -84,7 +84,6 @@ a = Analysis(
     excludes=[
         'tkinter',
         'test',
-        'email',
         'xmlrpc',
         'ftplib',
         'imaplib',
