@@ -53,13 +53,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
-启动后侧边栏将默认显示年报查询标签页。在搜索框输入股票代码（例如 AAPL、600519、00700）并按回车即可开始。注意，SEC可能会对部分国内IP做封禁。
-
 ---
 
 ## 快速上手
 
-应用启动后，主界面由左侧栏（导航 + 搜索 + 一键分析 + 收藏）与右侧主内容区构成：
+应用启动后，侧边栏将默认显示年报查询标签页。主界面由左侧功能栏（搜索 + 一键分析 + 功能栏）与右侧主内容区构成，其中搜索是核心功能。当启用了搜索后，部分功能栏会自动查询相关调研，若提供一部分对比公司信息，将调用Agent能力进行深入分析。
 
 <p align="center">
   <img src="docs/images/screenshot-overview.png" alt="主界面" width="100%">
@@ -109,7 +107,7 @@ python main.py
 
 ### 4. 同行业搜索
 
-自然语言描述公司特征，由 LLM 推荐最相近的 A / H / 美股上市公司，并按相关度评分排序。
+自然语言描述公司特征，由 LLM 推荐最相近的 A / H / 美股上市公司，并按相关度评分贪心排序。
 
 <p align="center">
   <img src="docs/images/screenshot-peer-scanner.png" alt="同行业搜索" width="100%">
