@@ -1,14 +1,11 @@
 # Security Policy
 
-## Supported Versions
 
+## 问题报告
 
-## Reporting a Vulnerability
+**对于隐私问题，请不要直接在公开Issue上发布**
 
-**Please do NOT open a public GitHub Issue for security vulnerabilities.**
-
-Report privately via one of:
-
+- 可以通过以下方式联系：
 - GitHub Security Advisories: <https://github.com/AlanHermitSoong/PreDiligenceLab/security/advisories/new>
 - Email: <121917266+AlanHermitSoong@users.noreply.github.com>（GitHub noreply，可改在 GitHub 上直接 DM maintainer）
 
