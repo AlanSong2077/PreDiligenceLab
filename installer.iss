@@ -9,7 +9,7 @@
 #define MyAppExeName "PreDiligenceLab.exe"
 
 [Setup]
-AppId={{59F79FCE-ECBD-4C84-AA49-1092217EA03D}
+AppId={{59F79FCE-ECBD-4C84-AA49-1092217EA03D}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -21,6 +21,7 @@ OutputBaseFilename=PreDiligenceLab_Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+PrivilegesRequired=lowest
 ; 如有图标取消注释：
 ; SetupIconFile=assets\icon.ico
 ; UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -29,7 +30,7 @@ WizardStyle=modern
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: checkedonce
 
 [Files]
 ; PyInstaller 实际产出 dist\PreDiligenceLab\ (目录)
