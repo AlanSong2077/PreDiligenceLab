@@ -7,7 +7,7 @@
 
 - 可以通过以下方式联系：
 - GitHub Security Advisories: <https://github.com/AlanHermitSoong/PreDiligenceLab/security/advisories/new>
-- Email: <121917266+AlanHermitSoong@users.noreply.github.com>（GitHub noreply，可改在 GitHub 上直接 DM maintainer）
+- Email: None
 
 请在报告里包含漏洞描述与影响范围、复现步骤 / PoC、涉及版本 / commit SHA、是否有已知的修复方案，我们会在 7 个工作日内回复。
 
