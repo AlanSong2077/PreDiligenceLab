@@ -45,12 +45,22 @@ def _edgar_cik(ticker: str) -> tuple[str, str]:
             headers={"User-Agent": "PreDiligenceLab/1.0 121917266+AlanHermitSoong@users.noreply.github.com"},
             timeout=15
         )
+        r.raise_for_status()
         data = r.json()
         for item in data.values():
             if item.get("ticker", "").upper() == ticker.upper():
                 return str(item["cik_str"]).zfill(10), item.get("title", ticker)
-    except Exception:
-        pass
+    except requests.exceptions.SSLError as e:
+        import logging
+        logging.getLogger(__name__).error("SSL 证书验证失败，请检查网络或证书: %s", e)
+        return "__SSL_ERROR__", str(e)
+    except requests.exceptions.ConnectionError as e:
+        import logging
+        logging.getLogger(__name__).error("网络连接失败: %s", e)
+        return "__CONN_ERROR__", str(e)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("SEC CIK 查询异常: %s", e)
     return "", ""
 
 
@@ -69,6 +79,12 @@ def fetch_us_annual_reports(ticker: str, save_dir: Path, max_count: int = 3) -> 
     cik, company = _edgar_cik(ticker)
     if not cik:
         result["error"] = f"未找到 {ticker} 的 SEC CIK，请确认股票代码"
+        return result
+    if cik.startswith("__SSL_ERROR__"):
+        result["error"] = f"网络 SSL 证书错误，无法连接 SEC 服务器。请检查网络连接后重试。\n详情: {company}"
+        return result
+    if cik.startswith("__CONN_ERROR__"):
+        result["error"] = f"无法连接 SEC 服务器，请检查网络连接。\n详情: {company}"
         return result
 
     result["company"] = company

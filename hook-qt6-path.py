@@ -19,3 +19,9 @@ if sys.platform == 'darwin':
         qt_lib = os.path.join(resources, 'PyQt6', 'Qt6', 'lib')
         if os.path.isdir(qt_lib):
             os.environ['DYLD_LIBRARY_PATH'] = qt_lib + ':' + os.environ.get('DYLD_LIBRARY_PATH', '')
+
+        # ── SSL certificates for requests/urllib3 ──
+        cert_file = os.path.join(resources, 'certifi', 'cacert.pem')
+        if os.path.isfile(cert_file):
+            os.environ['SSL_CERT_FILE'] = cert_file
+            os.environ['REQUESTS_CA_BUNDLE'] = cert_file

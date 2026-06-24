@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PreDiligenceLab.spec — PyInstaller 构建配置
-# 最后更新：2026-06-15
+# 最后更新：2026-06-24
+
+import certifi
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[
+        # ── SSL certificates (needed for requests/HTTPS in packaged app) ──
+        (certifi.where(), 'certifi'),
         # ── Qt configuration (must be at Resources root for macOS .app bundle) ──
         ('qt.conf', '.'),
         ('main.py',              '.'),
@@ -57,6 +61,10 @@ a = Analysis(
         'requests.adapters',
         'requests.packages',
         'urllib3',
+        'certifi',
+        'charset_normalizer',
+        'idna',
+        'urllib3.exceptions',
         'bs4',
         'beautifulsoup4',
         # 图表

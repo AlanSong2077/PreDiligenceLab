@@ -126,6 +126,7 @@ def _load_ticker_map() -> dict:
         return _TICKER_CACHE
     data = _get(_TICKER_URL)
     if not data:
+        _log.error("无法加载 SEC Ticker 映射表，可能是网络或 SSL 证书问题")
         return {}
     for item in data.values():
         t = item.get("ticker", "").upper()
