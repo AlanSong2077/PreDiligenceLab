@@ -5,7 +5,7 @@
 <h1 align="center">Pre-Diligence Lab</h1>
 
 <p align="center">
-  一级市场投研与风控桌面工作台<br>
+  一级市场预研与风控Lab<br>
   Primary-Market Investment Research &amp; Risk-Control Workbench
 </p>
 
