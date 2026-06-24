@@ -254,7 +254,7 @@ SEC EDGAR 跨大洲访问仍可能慢。HKEX 与 cninfo 一般较快，需要耐
 
 ## 许可证
 
-本项目基于 [Apache License 2.0](LICENSE) 开源。
+本项目基于 [CC BY-NC-ND 4.0](LICENSE)（署名-非商业性使用-禁止演绎）许可，仅供个人学习与研究使用，禁止商业用途及修改再分发。
 
 ---
 
