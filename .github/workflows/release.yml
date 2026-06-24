@@ -83,6 +83,17 @@ jobs:
       - name: Install Inno Setup 6
         run: choco install innosetup -y --no-progress
 
+      - name: Download ChineseSimplified.isl for Inno Setup
+        run: |
+          $islDir = "C:\Program Files (x86)\Inno Setup 6\Languages"
+          $islFile = "$islDir\ChineseSimplified.isl"
+          if (-not (Test-Path $islFile)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile $islFile
+            Write-Host "Downloaded ChineseSimplified.isl"
+          } else {
+            Write-Host "ChineseSimplified.isl already exists"
+          }
+
       - name: PyInstaller build
         run: |
           pyinstaller PreDiligenceLab.spec --noconfirm --clean
@@ -97,12 +108,12 @@ jobs:
           mkdir -p release
           iscc installer.iss *> release/iscc_log.txt
           $rc = $LASTEXITCODE
-          echo "iscc exit code: $rc"
           Get-Content release/iscc_log.txt
           if ($rc -ne 0 -or -not (Test-Path "dist/PreDiligenceLab_Setup.exe")) {
             Write-Error "Setup exe build failed (iscc exit $rc)"
             exit 1
           }
+          Write-Host "Windows installer OK"
 
       - name: Zip dist folder (portable)
         run: |

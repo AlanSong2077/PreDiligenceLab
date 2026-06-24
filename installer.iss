@@ -28,6 +28,8 @@ PrivilegesRequired=lowest
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; fallback: 如果 ChineseSimplified.isl 不存在则用英文
+; CI 环境会先下载该文件到 Inno Setup Languages 目录
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标:"; Flags: checkedonce
