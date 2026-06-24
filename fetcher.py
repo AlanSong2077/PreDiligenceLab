@@ -42,7 +42,7 @@ def _edgar_cik(ticker: str) -> tuple[str, str]:
     try:
         r = requests.get(
             "https://www.sec.gov/files/company_tickers.json",
-            headers={"User-Agent": "PreDiligenceLab/1.0 121917266+AlanHermitSoong@users.noreply.github.com"},
+            headers={"User-Agent": "PreDiligenceLab/1.0 (alansong2077@gmail.com)"},
             timeout=15
         )
         r.raise_for_status()
@@ -93,7 +93,7 @@ def fetch_us_annual_reports(ticker: str, save_dir: Path, max_count: int = 3) -> 
         sub_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
         r = requests.get(
             sub_url,
-            headers={"User-Agent": "PreDiligenceLab/1.0 121917266+AlanHermitSoong@users.noreply.github.com"},
+            headers={"User-Agent": "PreDiligenceLab/1.0 (alansong2077@gmail.com)"},
             timeout=15
         )
         sub = r.json()
@@ -197,7 +197,7 @@ def download_us_filing(filing: dict, save_dir: Path) -> tuple[bool, str]:
         url = filing["url"]
         r = requests.get(
             url,
-            headers={"User-Agent": "PreDiligenceLab/1.0 121917266+AlanHermitSoong@users.noreply.github.com"},
+            headers={"User-Agent": "PreDiligenceLab/1.0 (alansong2077@gmail.com)"},
             timeout=60, stream=True
         )
         r.raise_for_status()
@@ -217,6 +217,49 @@ def download_us_filing(filing: dict, save_dir: Path) -> tuple[bool, str]:
 # 港股  —  HKEXnews (披露易) + akshare
 # ─────────────────────────────────────────────
 
+# HKEX 股票代码 → 内部 stock_id 缓存
+_HKEX_STOCK_CACHE: dict = {}   # stock_code → {id, name}
+
+_HKEX_SEARCH_URL = "https://www1.hkexnews.hk/search/titleSearchServlet.do"
+_HKEX_STOCK_LIST_ZH = "https://www1.hkexnews.hk/ncms/script/eds/activestock_sehk_c.json"
+_HKEX_STOCK_LIST_EN = "https://www1.hkexnews.hk/ncms/script/eds/activestock_sehk_e.json"
+
+
+def _hkex_resolve_stock_id(stock_code: str) -> tuple[int, str]:
+    """通过 HKEX 股票列表解析 stock_code → (stock_id, company_name)"""
+    global _HKEX_STOCK_CACHE
+    code5 = stock_code.zfill(5)
+
+    if code5 in _HKEX_STOCK_CACHE:
+        info = _HKEX_STOCK_CACHE[code5]
+        return info["id"], info["name"]
+
+    try:
+        r = requests.get(_HKEX_STOCK_LIST_ZH, timeout=15)
+        r.raise_for_status()
+        for item in r.json():
+            c = item.get("c", "")
+            _HKEX_STOCK_CACHE[c] = {
+                "id": item.get("i", 0),
+                "name": item.get("n", ""),
+            }
+        # 也加载英文列表作为补充
+        r2 = requests.get(_HKEX_STOCK_LIST_EN, timeout=15)
+        r2.raise_for_status()
+        for item in r2.json():
+            c = item.get("c", "")
+            if c not in _HKEX_STOCK_CACHE:
+                _HKEX_STOCK_CACHE[c] = {
+                    "id": item.get("i", 0),
+                    "name": item.get("n", ""),
+                }
+    except Exception:
+        pass
+
+    info = _HKEX_STOCK_CACHE.get(code5, {})
+    return info.get("id", 0), info.get("name", "")
+
+
 def fetch_hk_annual_reports(code: str, save_dir: Path, max_count: int = 3) -> dict:
     result = {
         "market": "港股 (HK)",
@@ -231,61 +274,85 @@ def fetch_hk_annual_reports(code: str, save_dir: Path, max_count: int = 3) -> di
 
     stock_code = code.zfill(5)
 
-    # 1. 获取公司名（akshare）
-    try:
-        import akshare as ak
-        df = ak.stock_hk_company_profile_em(symbol=stock_code)
-        if not df.empty:
-            result["company"] = df.iloc[0].get("公司名称", "")
-    except Exception:
-        pass
+    # 1. 解析 stock_id 并获取公司名
+    stock_id, hkex_name = _hkex_resolve_stock_id(stock_code)
+    if hkex_name:
+        result["company"] = hkex_name
 
-    # 2. 查询报告列表（HKEXnews）—— 年报 + 中期报告各取 max_count 条
-    def _hkex_query(t2code: str, form_label: str) -> list:
-        """通用 HKEXnews 查询，返回 filing 列表"""
-        filings = []
+    # akshare 作为补充获取公司名
+    if not result["company"]:
         try:
-            session = requests.Session()
-            session.headers.update(HEADERS)
-            session.get("https://www1.hkexnews.hk/search/titlesearch.xhtml", timeout=10)
-            r = session.post(
-                "https://www1.hkexnews.hk/search/titlesearch.xhtml",
-                data={
-                    "lang": "ZH", "category": "0", "market": "SEHK",
-                    "searchType": "1", "documentNo": "", "stockId": stock_code,
-                    "from": "", "to": "", "MB-Daterange": "0", "title": "",
-                    "t1code": "40000", "t2Gcode": "-2", "t2code": t2code,
-                    "rowRange": "ALL", "action": "getResult",
-                },
-                headers={
-                    **HEADERS_XHR,
-                    "Referer": "https://www1.hkexnews.hk/search/titlesearch.xhtml",
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                },
-                timeout=20
-            )
-            ct = r.headers.get("Content-Type", "")
-            if "json" in ct:
-                items = r.json().get("result", [])
-                for item in items[:max_count]:
-                    file_link = item.get("FILE_LINK", "")
-                    if file_link and not file_link.startswith("http"):
-                        file_link = "https://www1.hkexnews.hk" + file_link
-                    filings.append({
-                        "form": form_label,
-                        "date": item.get("DATE_TIME", "")[:10],
-                        "title": item.get("TITLE", form_label),
-                        "url": file_link,
-                        "downloaded": False,
-                    })
-                    if not result["company"] and item.get("STOCK_NAME"):
-                        result["company"] = item["STOCK_NAME"]
+            import akshare as ak
+            df = ak.stock_hk_company_profile_em(symbol=stock_code)
+            if not df.empty:
+                result["company"] = df.iloc[0].get("公司名称", "")
+        except Exception:
+            pass
+
+    # 2. 查询报告列表（HKEXnews titleSearchServlet.do API）
+    def _hkex_search(title_kw: str, form_label: str) -> list:
+        """通过新 HKEX Search API 查询，返回 filing 列表"""
+        filings = []
+        if not stock_id:
+            return filings
+        try:
+            today = datetime.date.today()
+            params = {
+                "sortDir": 0,
+                "sortByOrder": "DateTime",
+                "category": 0,
+                "market": "SEHK",
+                "stockId": stock_id,
+                "documentType": -1,
+                "fromDate": f"{today.year - 3}0101",
+                "toDate": today.strftime("%Y%m%d"),
+                "title": title_kw,
+                "searchType": 1,
+                "t": "tc",
+                "lang": "TC",
+                "rowRange": 20,
+            }
+            r = requests.get(_HKEX_SEARCH_URL, params=params, timeout=20)
+            r.raise_for_status()
+            import json as _json
+            data = r.json()
+            result_str = data.get("result", "[]")
+            if isinstance(result_str, str):
+                items = _json.loads(result_str)
+            else:
+                items = result_str
+
+            for item in items[:max_count]:
+                file_link = item.get("FILE_LINK", "")
+                if file_link and not file_link.startswith("http"):
+                    file_link = "https://www1.hkexnews.hk" + file_link
+                # HKEX 返回 DD/MM/YYYY，统一转为 YYYY-MM-DD
+                raw_date = item.get("DATE_TIME", "")
+                try:
+                    date_str = datetime.datetime.strptime(raw_date, "%d/%m/%Y %H:%M").strftime("%Y-%m-%d")
+                except (ValueError, TypeError):
+                    date_str = raw_date[:10] if raw_date else ""
+                filings.append({
+                    "form": form_label,
+                    "date": date_str,
+                    "title": item.get("TITLE", form_label),
+                    "url": file_link,
+                    "downloaded": False,
+                })
+                if not result["company"] and item.get("STOCK_NAME"):
+                    result["company"] = item["STOCK_NAME"]
         except Exception:
             pass
         return filings
 
-    annual_filings = _hkex_query("ANNRPT", "年报")
-    interim_filings = _hkex_query("INTRIM", "中期报告")
+    annual_filings = _hkex_search("年报", "年报")
+    interim_filings = _hkex_search("中期", "中期报告")
+
+    # 如果按中文关键词没搜到，尝试英文关键词
+    if not annual_filings:
+        annual_filings = _hkex_search("annual report", "年报")
+    if not interim_filings:
+        interim_filings = _hkex_search("interim", "中期报告")
 
     # 合并：年报在前，中期报告在后
     result["filings"] = annual_filings + interim_filings

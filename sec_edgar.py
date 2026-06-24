@@ -30,7 +30,7 @@ _DELAY       = 0.12   # SEC 要求 10 req/s，保守 ~8 req/s
 _MAX_RETRY   = 3
 
 _HEADERS = {
-    "User-Agent": "PreDiligenceLab/1.0 121917266+AlanHermitSoong@users.noreply.github.com",   # SEC 要求标注 User-Agent
+    "User-Agent": "PreDiligenceLab/1.0 (alansong2077@gmail.com)",   # SEC 要求标注 User-Agent 含联系方式
     "Accept": "application/json",
 }
 
